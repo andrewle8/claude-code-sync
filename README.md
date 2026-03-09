@@ -1,64 +1,64 @@
 # Claude Code Sync
 
-Sync your Claude Code CLI configuration across multiple machines using [Syncthing](https://syncthing.net/). Works across macOS, Linux, and Windows.
+Sync your [Claude Code](https://claude.com/claude-code) CLI config across machines with [Syncthing](https://syncthing.net/). macOS, Linux, Windows.
 
-## The Problem
+Claude Code has no built-in sync (as of March 2026). This repo has a tested `.stignore` whitelist that syncs only the portable config files and skips runtime data.
 
-Claude Code stores all configuration in `~/.claude/` — your global `CLAUDE.md`, custom skills, agent definitions, project memory, keybindings, and more. When you use Claude Code on multiple machines, each one starts from scratch with no shared context.
+## What Syncs
 
-Manually copying configs is tedious and error-prone. Cloud sync tools like Dropbox or Google Drive can corrupt files with lock conflicts. What you need is **selective, bidirectional, real-time sync** that only touches the safe config files and leaves runtime data alone.
-
-## The Solution
-
-Syncthing provides encrypted, peer-to-peer sync with no cloud middleman. Combined with a carefully crafted `.stignore` whitelist, it syncs only the files that are safe to share while ignoring machine-specific runtime data.
-
-### What Syncs
-
-| Path | Description |
-|------|-------------|
-| `CLAUDE.md` | Global instructions loaded into every conversation |
-| `skills/` | Custom slash commands (`/ship`, `/sync`, `/bump-version`, etc.) |
-| `agents/` | Custom agent definitions |
-| `agent-memory/` | Accumulated agent knowledge across conversations |
-| `keybindings.json` | Custom keyboard shortcuts |
+| Path | What |
+|------|------|
+| `CLAUDE.md` | Global instructions, loaded every conversation |
+| `skills/` | Custom slash commands (`/ship`, `/sync`, etc.) |
+| `agents/` | [Subagent](https://code.claude.com/docs/en/sub-agents) definitions |
+| `agent-memory/` | Persistent subagent memory (user scope) |
+| `rules/` | User-level [rules](https://code.claude.com/docs/en/memory) applied before project rules |
+| `keybindings.json` | Custom [keybindings](https://code.claude.com/docs/en/keybindings) |
 | `memory/` | Global memory files |
-| `commands/` | Custom commands |
-| `projects/*/memory/` | Per-project memory (MEMORY.md and topic files) |
+| `commands/` | Legacy commands (use `skills/` instead) |
+| `projects/*/memory/` | Per-project memory (MEMORY.md + topic files) |
 | `projects/*/CLAUDE.md` | Per-project instructions |
-| `.stignore` | The ignore file itself (so all machines stay in sync) |
+| `CLAUDE.md.bak-*` | CLAUDE.md backups |
 
-### What Does NOT Sync (Intentionally)
+## What Does NOT Sync
 
 | Path | Why |
 |------|-----|
-| `settings.json` | Each machine may have different plugins, env vars, or statusline configs |
-| `settings.local.json` | Machine-specific permissions |
-| `credentials.json` | Auth tokens — never sync secrets |
-| `history.jsonl` | Session transcripts (large, machine-specific) |
+| `settings.json` | Per-machine plugins, env vars, MCP servers |
+| `settings.local.json` | Per-machine permissions |
+| `.credentials.json` | Auth tokens |
+| `history.jsonl` | Session transcripts (large) |
+| `plans/`, `tasks/`, `todos/` | Session-bound state |
+| `plugins/`, `teams/` | Per-machine runtime |
+| `statusline.sh` | OS-specific shell commands |
 | `cache/`, `debug/`, `downloads/` | Runtime data |
-| `session-env/`, `shell-snapshots/` | Ephemeral session state |
-| `projects/**/*.jsonl` | Conversation logs |
-| `projects/**/subagents/` | Subagent runtime data |
-| `projects/**/tool-results/` | Cached tool outputs |
+| `file-history/`, `backups/` | Auto-generated snapshots |
+| `session-env/`, `shell-snapshots/` | Ephemeral state |
+| `usage-data/`, `telemetry/` | Analytics (can be huge) |
+| `ide/`, `chrome/`, `paste-cache/` | Tool runtime |
+| `projects/**/*.jsonl`, `*.meta.json` | Conversation logs |
+| `projects/**/subagents/`, `tool-results/` | Subagent runtime |
 
 ## Setup
 
 ### Prerequisites
 
-- [Syncthing](https://syncthing.net/) installed on all machines
-- Claude Code CLI installed on all machines (`npm install -g @anthropic-ai/claude-code`)
+- [Syncthing](https://syncthing.net/) on all machines
+- [Claude Code CLI](https://claude.com/claude-code) on all machines
 
-### 1. Create the `.stignore` File
+### 1. Copy `.stignore` to every machine
 
-Place this file at `~/.claude/.stignore` on your **first** machine. Once Syncthing is configured, it will propagate to other machines automatically.
+Put this at `~/.claude/.stignore`. Syncthing does **not** sync its own `.stignore`, so you need to copy it manually to each machine.
+
+A copy is in this repo: [`.stignore`](.stignore)
 
 ```
 // Syncthing ignore file for ~/.claude/
-// Whitelist approach: first match wins in Syncthing.
-// Note: !/dir auto-expands to !/dir + !/dir/** so we must
-// put specific ignores BEFORE broad un-ignores.
+// Whitelist approach: first match wins.
+// Both !/dir and !/dir/** are needed: the first un-ignores
+// the directory itself, the second un-ignores its contents.
 //
-// SAFE to sync (config files, no runtime writes):
+// SAFE to sync:
 !/CLAUDE.md
 !/CLAUDE.md.bak-*
 !/skills
@@ -72,11 +72,11 @@ Place this file at `~/.claude/.stignore` on your **first** machine. Once Syncthi
 !/memory/**
 !/commands
 !/commands/**
-// settings.json intentionally NOT synced — each machine has different plugins/env
+!/rules
+!/rules/**
 !/.stignore
 //
-// Block session transcripts and runtime data inside projects
-// (these MUST come before !/projects to win first-match)
+// Block runtime data inside projects (must come before !/projects)
 projects/**/*.jsonl
 projects/**/*.meta.json
 projects/**/subagents
@@ -84,167 +84,168 @@ projects/**/subagents/**
 projects/**/tool-results
 projects/**/tool-results/**
 //
-// Allow projects directory structure, memory, and CLAUDE.md
+// Allow project memory and CLAUDE.md only
 !/projects
 !/projects/*
 !/projects/*/memory
 !/projects/*/memory/**
 !/projects/*/CLAUDE.md
 //
-// IGNORE everything else at root level
+// Block everything else
 *
 ```
 
-> **How it works:** The `*` at the bottom ignores everything by default. Lines starting with `!` un-ignore specific paths. Syncthing uses first-match-wins, so the explicit block rules for `projects/**/*.jsonl` etc. must come before `!/projects`.
+The `*` at the bottom blocks everything not explicitly allowed. First match wins, so the project block rules must come before `!/projects`. New directories added by future Claude Code updates are blocked by default.
 
-### 2. Configure Syncthing
+### 2. Add the folder in Syncthing
 
-#### Add the shared folder
-
-On your first machine, open Syncthing's web UI (`http://127.0.0.1:8384`) and add a new folder:
+Open `http://127.0.0.1:8384` and add a shared folder:
 
 | Setting | Value |
 |---------|-------|
-| **Folder Label** | `Claude Code Sync` |
-| **Folder ID** | `claude-code-sync` |
-| **Folder Path** | `~/.claude` (macOS/Linux) or `C:\Users\<you>\.claude` (Windows) |
-| **File Versioning** | Staggered, 30 days (see below) |
-| **Ignore Delete** | `true` (critical — see below) |
-| **Ignore Permissions** | `true` (recommended for cross-OS sync) |
-| **File Pull Order** | `smallestFirst` (configs are small, sync them fast) |
-| **Watch for Changes** | `true` |
+| Folder Label | `Claude Code Sync` |
+| Folder ID | `claude-code-sync` |
+| Folder Path | `~/.claude` (macOS/Linux) or `C:\Users\<you>\.claude` (Windows) |
+| File Versioning | Staggered, 30 days |
+| **Ignore Delete** | **`true`** |
+| Ignore Permissions | `true` |
+| File Pull Order | `smallestFirst` |
+| Watch for Changes | `true` |
 
-#### On each additional machine
+On each additional machine:
 
-1. Add the remote device in Syncthing
-2. Accept or manually add the `claude-code-sync` folder
-3. Set the folder path to `~/.claude` (or the Windows equivalent)
-4. **Set Ignore Delete to `true`** on every device
-5. **Set File Versioning to Staggered** with at least 30 days retention
+1. Add the remote device
+2. Accept the `claude-code-sync` folder, set path to `~/.claude`
+3. Set **Ignore Delete** to `true`
+4. Set **Staggered Versioning**, 30 days
+5. Copy `.stignore` to `~/.claude/.stignore`
 
 ### 3. Verify
 
-After setup, trigger a rescan and check that files propagate:
-
 ```bash
-# On any machine with curl
+# macOS
 API_KEY=$(grep apikey ~/Library/Application\ Support/Syncthing/config.xml | sed 's/.*>\(.*\)<.*/\1/')
+curl -s -X POST -H "X-API-Key: $API_KEY" "http://127.0.0.1:8384/rest/db/scan?folder=claude-code-sync"
+
+# Linux
+API_KEY=$(grep apikey ~/.local/state/syncthing/config.xml | sed 's/.*>\(.*\)<.*/\1/')
 curl -s -X POST -H "X-API-Key: $API_KEY" "http://127.0.0.1:8384/rest/db/scan?folder=claude-code-sync"
 ```
 
-Then verify on the other machine:
+Check the other machine:
 
 ```bash
 ls -la ~/.claude/CLAUDE.md
-ls ~/.claude/skills/*/SKILL.md
+ls ~/.claude/skills/*/SKILL.md 2>/dev/null
 ```
 
-## Recommended Settings
+```cmd
+:: Windows
+if exist C:\Users\%USERNAME%\.claude\CLAUDE.md echo SYNCED
+```
 
-### Ignore Delete (Critical)
+## Key Settings
 
-Set `ignoreDelete: true` on **every device** for the `claude-code-sync` folder. This prevents accidental deletions from propagating across all your machines. If one machine's config gets wiped (e.g., by a Claude Code update), the other machines keep their copies.
+### Ignore Delete
 
-Without this, a deletion on any device will cascade to all others.
+Set this to `true` on **every device**. If one machine's config gets wiped (Claude Code update, accidental delete), the others keep their copies. Without this, a delete on one machine cascades everywhere.
 
-### Staggered File Versioning
+### Staggered Versioning
 
-Enable **Staggered File Versioning** with at least 30 days of retention. This keeps timestamped backups of overwritten or deleted files in `.stversions/`. If something goes wrong, you can recover:
+Keeps timestamped backups of changed/deleted files in `.stversions/` for 30 days.
 
 ```bash
-# See what's been backed up
 ls ~/.claude/.stversions/
-
-# Recover a deleted CLAUDE.md
 cp ~/.claude/.stversions/CLAUDE~20260307-080132.md ~/.claude/CLAUDE.md
 ```
 
-### Settings.json: Keep It Per-Machine
+### Why settings.json is excluded
 
-The `.stignore` intentionally excludes `settings.json` because it contains machine-specific configuration:
+Each machine needs its own `settings.json`: plugins, env vars, status line commands, and MCP server configs all differ per OS and machine. Configure it separately everywhere.
 
-- **Plugins**: Not all plugins work on all OSes
-- **Environment variables**: Paths differ between machines
-- **Status line**: Shell commands are OS-specific
-- **MCP servers**: May reference local paths or ports
+## CLAUDE.md Load Order
 
-Configure `settings.json` separately on each machine.
+1. Managed policy (enterprise)
+2. **`~/.claude/CLAUDE.md`** (user-level, this is what we sync)
+3. `CLAUDE.md` in project root (shared via git)
+4. `CLAUDE.local.md` (git-ignored, per-machine overrides)
+
+## Project Memory: Cross-OS Caveat
+
+Project memory paths are derived from absolute filesystem paths. The same repo gets different identifiers on different OSes (`-Users-andrew-repos-myapp` on macOS vs `F--projects-myapp` on Windows). Claude Code only reads the directory matching the local path.
+
+Cross-OS project memory won't carry over automatically. Still worth syncing for:
+- Same-OS machines with matching paths (works directly)
+- Disaster recovery (rebuild a machine, memory is there)
+- Manual reference across machines
 
 ## Directory Layout
 
 ```
 ~/.claude/
-├── CLAUDE.md                    ← SYNCED: global instructions
-├── .stignore                    ← SYNCED: this ignore file
-├── keybindings.json             ← SYNCED: keyboard shortcuts
-├── settings.json                ← NOT SYNCED: per-machine config
-├── settings.local.json          ← NOT SYNCED: per-machine permissions
-├── .credentials.json            ← NOT SYNCED: auth tokens
-├── history.jsonl                ← NOT SYNCED: session history
-├── skills/                      ← SYNCED
+├── CLAUDE.md                    SYNCED
+├── .stignore                    MANUAL (copy to each machine)
+├── keybindings.json             SYNCED
+├── skills/                      SYNCED
 │   ├── ship/SKILL.md
-│   ├── sync/SKILL.md
 │   └── .../
-├── agents/                      ← SYNCED: agent definitions
-├── agent-memory/                ← SYNCED: agent accumulated knowledge
-├── memory/                      ← SYNCED: global memory
-├── commands/                    ← SYNCED: custom commands
-├── projects/                    ← PARTIALLY SYNCED
-│   ├── <project>/
-│   │   ├── memory/MEMORY.md     ← SYNCED
-│   │   ├── CLAUDE.md            ← SYNCED
-│   │   ├── *.jsonl              ← NOT SYNCED: transcripts
-│   │   └── subagents/           ← NOT SYNCED: runtime
-│   └── .../
-├── .stfolder/                   ← Syncthing marker
-├── .stversions/                 ← Syncthing backup copies
-├── cache/                       ← NOT SYNCED
-├── debug/                       ← NOT SYNCED
-└── ...
+├── agents/                      SYNCED
+├── agent-memory/                SYNCED
+├── rules/                       SYNCED
+├── memory/                      SYNCED
+├── commands/                    SYNCED (legacy)
+├── projects/                    PARTIAL
+│   └── <project>/
+│       ├── memory/              SYNCED
+│       ├── CLAUDE.md            SYNCED
+│       ├── *.jsonl              blocked
+│       └── subagents/           blocked
+├── settings.json                blocked (per-machine)
+├── settings.local.json          blocked (per-machine)
+├── .credentials.json            blocked (secrets)
+├── plans/                       blocked
+├── tasks/                       blocked
+├── plugins/                     blocked
+├── cache/, debug/, ...          blocked
+├── .stfolder/                   Syncthing marker
+└── .stversions/                 Syncthing backups
 ```
 
 ## Troubleshooting
 
-### Files not syncing
+**Files not syncing:** Check connections in the Syncthing UI. Verify `.stignore` is identical on all machines (it's not auto-synced). Trigger a rescan with the curl commands above.
 
-1. **Check Syncthing connections**: All devices should show "Connected" in the web UI
-2. **Trigger a rescan**: `curl -X POST -H "X-API-Key: $KEY" "http://127.0.0.1:8384/rest/db/scan?folder=claude-code-sync"`
-3. **Check the `.stignore`**: Make sure the file you expect to sync is whitelisted
-4. **Check completion**: Look at the folder status in the Syncthing UI — it should show 100% for synced items
+**Files deleted everywhere:** Check `.stversions/` for timestamped backups. Copy the file back and Syncthing will propagate it.
 
-### Files were deleted across all machines
+**Sync conflict files:** Files like `settings.sync-conflict-*.json` appear when two machines edit the same file. Safe to delete.
 
-This is why `ignoreDelete` and staggered versioning exist:
+**Windows: can't find `.claude`:** It's hidden. Use `dir /a` or `if exist C:\Users\<you>\.claude\NUL echo EXISTS`.
 
-1. Check `.stversions/` on any machine for timestamped backups
-2. Copy the file back to the active location
-3. Syncthing will propagate the restore
+## Cross-OS Paths
 
-### Sync conflict files
-
-Files like `settings.sync-conflict-20260307-130843-DEVICE.json` appear when two machines modify the same file simultaneously. These are safe to delete — Syncthing keeps both versions so you can merge manually if needed.
-
-### Windows: `.claude` directory appears missing
-
-The `.claude` directory is hidden on Windows. Use `dir /a` to see it, or check with `if exist C:\Users\<you>\.claude\NUL echo EXISTS`.
-
-## Cross-OS Considerations
-
-| OS | `~/.claude` Path | Syncthing Config |
-|----|-------------------|------------------|
+| OS | `~/.claude` | Syncthing Config |
+|----|-------------|------------------|
 | macOS | `/Users/<you>/.claude` | `~/Library/Application Support/Syncthing/config.xml` |
-| Linux | `/home/<you>/.claude` | `~/.local/state/syncthing/config.xml` or `~/.config/syncthing/config.xml` |
+| Linux | `/home/<you>/.claude` | `~/.local/state/syncthing/config.xml` |
 | Windows | `C:\Users\<you>\.claude` | `%LOCALAPPDATA%\Syncthing\config.xml` |
 
-Project memory paths like `projects/-Users-andrewle/memory/` are derived from the working directory path. These will sync across machines even though the paths differ — Claude Code uses these as project identifiers, and having the memories available on any machine means context carries over.
+## Alternatives
 
-## Security Notes
+| Approach | Tradeoff |
+|----------|----------|
+| **Syncthing** (this repo) | Real-time, selective, P2P, encrypted. Needs Syncthing everywhere. |
+| **Dropbox/iCloud + symlinks** | Simple but no selective sync, risk of corrupting runtime files. |
+| **[CCMS](https://github.com/miwidot/ccms)** | rsync over SSH. Manual, not real-time. |
+| **[claude-code-config-sync](https://www.npmjs.com/package/claude-code-config-sync)** | npm package. Extra dependency. |
+| **Git repo** | Version controlled. Manual commit/push/pull. |
 
-- Syncthing uses TLS encryption for all transfers — no data is sent in plaintext
-- No cloud relay stores your data (direct peer-to-peer, or encrypted relay if direct connection fails)
-- `.credentials.json` is explicitly excluded from sync
-- `settings.local.json` (which contains tool permission allow-lists) is excluded
-- Review your `CLAUDE.md` before making the repo public — it may contain internal paths or server addresses
+## Security
+
+- All transfers are TLS encrypted
+- P2P by default. Relay servers are used as fallback but data is end-to-end encrypted (relay can't read it)
+- `.credentials.json` and `settings.local.json` are blocked by the catch-all rule
+- `settings.json` is excluded too (may contain MCP API keys)
+- Check your `CLAUDE.md` for internal paths before making it public
 
 ## License
 

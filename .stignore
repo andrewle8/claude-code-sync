@@ -1,7 +1,7 @@
 // Syncthing ignore file for ~/.claude/
 // Whitelist approach: first match wins in Syncthing.
-// Note: !/dir auto-expands to !/dir + !/dir/** so we must
-// put specific ignores BEFORE broad un-ignores.
+// Both !/dir and !/dir/** are needed: the first un-ignores
+// the directory itself, the second un-ignores its contents.
 //
 // SAFE to sync (config files, no runtime writes):
 !/CLAUDE.md
@@ -17,6 +17,8 @@
 !/memory/**
 !/commands
 !/commands/**
+!/rules
+!/rules/**
 // settings.json intentionally NOT synced — each machine has different plugins/env
 !/.stignore
 //
