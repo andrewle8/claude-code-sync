@@ -1,0 +1,40 @@
+// Syncthing ignore file for ~/.claude/
+// Whitelist approach: first match wins in Syncthing.
+// Note: !/dir auto-expands to !/dir + !/dir/** so we must
+// put specific ignores BEFORE broad un-ignores.
+//
+// SAFE to sync (config files, no runtime writes):
+!/CLAUDE.md
+!/CLAUDE.md.bak-*
+!/skills
+!/skills/**
+!/agents
+!/agents/**
+!/agent-memory
+!/agent-memory/**
+!/keybindings.json
+!/memory
+!/memory/**
+!/commands
+!/commands/**
+// settings.json intentionally NOT synced — each machine has different plugins/env
+!/.stignore
+//
+// Block session transcripts and runtime data inside projects
+// (these MUST come before !/projects to win first-match)
+projects/**/*.jsonl
+projects/**/*.meta.json
+projects/**/subagents
+projects/**/subagents/**
+projects/**/tool-results
+projects/**/tool-results/**
+//
+// Allow projects directory structure, memory, and CLAUDE.md
+!/projects
+!/projects/*
+!/projects/*/memory
+!/projects/*/memory/**
+!/projects/*/CLAUDE.md
+//
+// IGNORE everything else at root level
+*
