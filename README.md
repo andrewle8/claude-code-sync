@@ -239,6 +239,10 @@ Cross-OS project memory won't carry over automatically. Still worth syncing for:
 | **[claude-code-config-sync](https://www.npmjs.com/package/claude-code-config-sync)** | npm package. Extra dependency. |
 | **Git repo** | Version controlled. Manual commit/push/pull. |
 
+## Related
+
+- **[Claude Insights Merge](https://github.com/andrewle8/claude-insights-merge)** — Merge `/insights` data across multiple machines into a single combined report. Complements this tool: Sync handles config, Insights Merge handles analytics.
+
 ## Security
 
 - All transfers are TLS encrypted
