@@ -14,6 +14,7 @@ Claude Code has no built-in sync (as of March 2026). This repo has a tested `.st
 | `agent-memory/` | Persistent subagent memory (user scope) |
 | `rules/` | User-level [rules](https://code.claude.com/docs/en/memory) applied before project rules |
 | `keybindings.json` | Custom [keybindings](https://code.claude.com/docs/en/keybindings) |
+| `statusline.js` | Cross-platform Node.js statusline script (see note below) |
 | `memory/` | Global memory files |
 | `commands/` | Legacy commands (use `skills/` instead) |
 | `projects/*/memory/` | Per-project memory (MEMORY.md + topic files) |
@@ -30,7 +31,7 @@ Claude Code has no built-in sync (as of March 2026). This repo has a tested `.st
 | `history.jsonl` | Session transcripts (large) |
 | `plans/`, `tasks/`, `todos/` | Session-bound state |
 | `plugins/`, `teams/` | Per-machine runtime |
-| `statusline.sh` | OS-specific shell commands |
+| `statusline.sh` | OS-specific shell commands (use cross-platform `statusline.js` instead) |
 | `cache/`, `debug/`, `downloads/` | Runtime data |
 | `file-history/`, `backups/` | Auto-generated snapshots |
 | `session-env/`, `shell-snapshots/` | Ephemeral state |
@@ -38,6 +39,16 @@ Claude Code has no built-in sync (as of March 2026). This repo has a tested `.st
 | `ide/`, `chrome/`, `paste-cache/` | Tool runtime |
 | `projects/**/*.jsonl`, `*.meta.json` | Conversation logs |
 | `projects/**/subagents/`, `tool-results/` | Subagent runtime |
+
+### Statusline note
+
+`statusline.js` syncs, but `settings.json` does not — so on each new machine you must also add this block to `~/.claude/settings.json` once:
+
+```json
+"statusLine": { "type": "command", "command": "node ~/.claude/statusline.js" }
+```
+
+The script is portable across macOS, Linux, and Windows. Requires Node.js on PATH.
 
 ## Setup
 
@@ -68,6 +79,7 @@ A copy is in this repo: [`.stignore`](.stignore)
 !/agent-memory
 !/agent-memory/**
 !/keybindings.json
+!/statusline.js
 !/memory
 !/memory/**
 !/commands
@@ -186,6 +198,7 @@ Cross-OS project memory won't carry over automatically. Still worth syncing for:
 ├── CLAUDE.md                    SYNCED
 ├── .stignore                    MANUAL (copy to each machine)
 ├── keybindings.json             SYNCED
+├── statusline.js                SYNCED (needs settings.json registration)
 ├── skills/                      SYNCED
 │   ├── ship/SKILL.md
 │   └── .../
