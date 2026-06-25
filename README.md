@@ -15,6 +15,7 @@ Claude Code has no built-in sync (as of March 2026). This repo has a tested `.st
 | `rules/` | User-level [rules](https://code.claude.com/docs/en/memory) applied before project rules |
 | `keybindings.json` | Custom [keybindings](https://code.claude.com/docs/en/keybindings) |
 | `statusline.js` | Cross-platform Node.js statusline script (see note below) |
+| `git-hooks/` | gitleaks pre-commit secret scanner (needs per-machine setup, see note below) |
 | `memory/` | Global memory files |
 | `commands/` | Legacy commands (use `skills/` instead) |
 | `projects/*/memory/` | Per-project memory (MEMORY.md + topic files) |
@@ -49,6 +50,27 @@ Claude Code has no built-in sync (as of March 2026). This repo has a tested `.st
 ```
 
 The script is portable across macOS, Linux, and Windows. Requires Node.js on PATH.
+
+### Git secret-scanning hook
+
+`git-hooks/pre-commit` syncs, but the git config that activates it and the executable bit do **not**. On each machine, run the one-time setup:
+
+```bash
+# 1. install gitleaks
+brew install gitleaks            # macOS
+# sudo apt install gitleaks      # Debian/Ubuntu
+# winget install gitleaks.gitleaks   # Windows
+
+# 2. point all repos at the synced hooks dir
+git config --global core.hooksPath ~/.claude/git-hooks
+
+# 3. make the hook executable (re-run if Syncthing later rewrites the file)
+chmod +x ~/.claude/git-hooks/pre-commit
+```
+
+The hook scans staged changes with gitleaks and blocks the commit on a hit. It fails open if gitleaks is not installed (commits proceed unscanned), so step 1 is what actually provides protection. A repo that needs its own pre-commit hook can place it at `.git/hooks/pre-commit.local` — the global hook will run it after the secret scan. Bypass a single commit with `git commit --no-verify`.
+
+This is a local backstop. GitHub push protection (enabled per-repo in Settings -> Code security) is the server-side net that also catches anything committed with `--no-verify`.
 
 ## Setup
 
@@ -87,6 +109,8 @@ A copy is in this repo: [`.stignore`](.stignore)
 !/rules
 !/rules/**
 !/.stignore
+!/git-hooks
+!/git-hooks/**
 //
 // Block runtime data inside projects (must come before !/projects)
 projects/**/*.jsonl
@@ -199,6 +223,8 @@ Cross-OS project memory won't carry over automatically. Still worth syncing for:
 ├── .stignore                    MANUAL (copy to each machine)
 ├── keybindings.json             SYNCED
 ├── statusline.js                SYNCED (needs settings.json registration)
+├── git-hooks/                   SYNCED (needs core.hooksPath + chmod +x per machine)
+│   └── pre-commit
 ├── skills/                      SYNCED
 │   ├── ship/SKILL.md
 │   └── .../

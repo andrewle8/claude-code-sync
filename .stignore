@@ -22,6 +22,10 @@
 !/rules/**
 // settings.json intentionally NOT synced — each machine has different plugins/env
 !/.stignore
+// Git secret-scanning pre-commit hook (gitleaks). Per-machine setup required:
+//   git config --global core.hooksPath ~/.claude/git-hooks && chmod +x ~/.claude/git-hooks/pre-commit
+!/git-hooks
+!/git-hooks/**
 //
 // Block session transcripts and runtime data inside projects
 // (these MUST come before !/projects to win first-match)

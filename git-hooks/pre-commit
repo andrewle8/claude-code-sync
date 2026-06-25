@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Global pre-commit hook — secret scanning with gitleaks.
+# Synced across machines via claude-code-sync (Syncthing whitelists git-hooks/**).
+#
+# Per-machine one-time setup (git config + exec bit do NOT sync):
+#   1. install gitleaks   (brew install gitleaks | apt install gitleaks | winget install gitleaks.gitleaks)
+#   2. git config --global core.hooksPath ~/.claude/git-hooks
+#   3. chmod +x ~/.claude/git-hooks/pre-commit       (re-run if Syncthing rewrites the file)
+#
+# Behaviour:
+#   - scans staged changes; blocks the commit if a secret is found
+#   - no gitleaks installed -> passes (fail-open on missing tool, never bricks commits)
+#   - chains to a repo-local hook at .git/hooks/pre-commit.local if present
+# Bypass once with:  git commit --no-verify
+set -uo pipefail
+
+if command -v gitleaks >/dev/null 2>&1; then
+  out="$(gitleaks git --staged --pre-commit --no-banner --redact -v 2>&1)"
+  if [ $? -ne 0 ]; then
+    echo "$out"
+    echo
+    echo "gitleaks: potential secret in staged changes -> commit blocked."
+    echo "  false positive?  add '# gitleaks:allow' on the offending line"
+    echo "  intentional?     bypass once with: git commit --no-verify"
+    exit 1
+  fi
+fi
+
+# Run a repo-local hook if the project installed one.
+local_hook="$(git rev-parse --git-path hooks/pre-commit.local 2>/dev/null || true)"
+if [ -n "${local_hook:-}" ] && [ -x "$local_hook" ]; then
+  exec "$local_hook"
+fi
+exit 0
